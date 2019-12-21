@@ -1,0 +1,24 @@
+{{- if .Values.haproxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-haproxy
+  namespace: {{ .Values.namespace }}
+  labels:
+    release: {{ template "version" .}}
+    chart: "{{ .Chart.Name }}"
+    app: "{{ .Release.Name }}-haproxy"
+    heritage: {{ .Release.Service | quote }}
+{{- with .Values.haproxy.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  type: {{ .Values.haproxy.service.type }}
+  ports:
+  - name: tcp
+    port: 80
+    targetPort: 80
+  selector:
+    app: "{{ .Release.Name }}-haproxy"
+{{- end }}

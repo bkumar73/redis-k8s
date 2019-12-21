@@ -1,0 +1,50 @@
+{{- if and .Values.haproxy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-haproxy
+  namespace: {{ .Values.namespace }}
+  labels:
+    release: {{ template "version" .}}
+    chart: "{{ .Chart.Name }}"
+    app: "{{ .Release.Name }}-haproxy"
+    heritage: {{ .Release.Service | quote }}
+data:
+  haproxy.cfg: |-
+    global
+      user haproxy
+      group haproxy
+      maxconn 4096
+      log stdout  format raw  local0  info
+
+    defaults REDIS
+      mode tcp
+      timeout connect 3s
+      timeout server 10s
+      timeout client 10s
+      retries 3
+
+    frontend stats
+      bind *:8404
+      mode http
+      http-request use-service prometheus-exporter if { path /metrics }
+      stats enable
+      stats uri /stats
+      stats refresh 10s
+
+    frontend ft_redis
+      bind *:80 name redis
+      default_backend bk_redis
+
+    backend bk_redis
+      option tcp-check
+      tcp-check connect
+      tcp-check send PING\r\n
+      tcp-check expect string +PONG
+      tcp-check send info\ replication\r\n
+      tcp-check expect string role:master
+      tcp-check send QUIT\r\n
+      tcp-check expect string +OK
+      server master {{ .Release.Name }}-master-0.{{ .Release.Name }}-master-headless.{{ .Values.namespace }}.svc.{{ .Values.clusterDomain }}:6379 check inter 1s
+      server slave-0 {{ .Release.Name }}-slave-0.{{ .Release.Name }}-slave-headless.{{ .Values.namespace }}.svc.{{ .Values.clusterDomain }}:6379 check inter 1s
+{{- end }}

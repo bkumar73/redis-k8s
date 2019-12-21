@@ -1,0 +1,22 @@
+{{- if .Values.cluster.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-slave
+  namespace: {{ .Values.namespace }}
+  labels:
+    release: {{ template "version" .}}
+    chart: "{{ .Chart.Name }}"
+    app: "{{ .Release.Name }}"
+    heritage: {{ .Release.Service | quote }}
+spec:
+  type: {{ .Values.slave.service.type }}
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: client
+  selector:
+    app: "{{ .Release.Name }}"
+    role: slave
+{{- end }}

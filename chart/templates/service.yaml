@@ -1,0 +1,23 @@
+{{- if .Values.sentinel.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    release: {{ template "version" .}}
+    chart: "{{ .Chart.Name }}"
+    app: "{{ .Release.Name }}"
+    heritage: {{ .Release.Service | quote }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - name: client
+    port: 6379
+    targetPort: 6379
+  - name: sentinel
+    port: 26379
+    targetPort: 26379
+  selector:
+    app: "{{ .Release.Name }}"
+{{- end }}

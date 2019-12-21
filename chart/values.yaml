@@ -1,0 +1,154 @@
+#- redis chart 
+
+namespace: redis
+clusterDomain: cluster.local
+cluster:
+  enabled: true
+  slaveCount: 1
+
+team: devops
+
+service:
+  type: ClusterIP
+ 
+image:
+  pullPolicy: Always
+  repository: devops/redis
+  tag: 5.0.6
+  imagePullSecrets: []
+
+persistence:
+  enabled: true
+  volumeSize: 10G
+  redisRDB: true
+
+usePassword:
+  enabled: false
+  redisPassword: {}
+
+master:
+  service:
+    type: ClusterIP 
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1000Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+slave:
+  service:
+    type: ClusterIP
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1000Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+sentinel:
+  enabled: false
+  quorum: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 5
+metrics:
+  enabled: true
+  image:
+    pullPolicy: Always
+    repository: devops/redis-exporter
+    tag: 1.3.2
+    imagePullSecrets: []
+  resources:
+    limits:
+      cpu: 100m
+      memory: 100Mi
+    requests:
+      cpu: 10m
+      memory: 10Mi
+
+haproxy:
+  enabled: false
+  service:
+    type: ClusterIP
+    annotations: {}
+  image:
+    pullPolicy: Always
+    repository: devops/haproxy
+    tag: 2.0.9
+    imagePullSecrets: []
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+priorityClassName: ""
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: 
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - topologyKey: kubernetes.io/hostname
+      labelSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - devops-redis
+
+podAnnotations: {}
+
+storageclass: gp2
+

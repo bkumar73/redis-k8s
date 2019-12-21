@@ -1,0 +1,240 @@
+{{- if .Values.cluster.enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-slave
+  namespace: {{ .Values.namespace }}
+  labels:
+    release: {{ template "version" .}}
+    chart: "{{ .Chart.Name }}"
+    app: "{{ .Release.Name }}"
+    heritage: {{ .Release.Service | quote }}
+spec:
+  serviceName: {{ .Release.Name }}-slave-headless
+  replicas: {{ .Values.cluster.slaveCount }}
+  selector:
+    matchLabels:
+      release: {{ template "version" .}}
+      chart: "{{ .Chart.Name }}"
+      app: "{{ .Release.Name }}"
+      role: slave
+  template:
+    metadata:
+      labels:
+        release: {{ template "version" .}}
+        chart: "{{ .Chart.Name }}"
+        app: "{{ .Release.Name }}"
+        role: slave
+      {{- if .Values.metrics.enabled }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9121"
+      {{- end }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+        ## Custom pod annotations
+        {{- range $key, $value := .Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+    spec:
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: "{{ .Values.priorityClassName }}"
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: "{{ .Values.priorityClassName }}"
+      {{- end }}
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 8 }}
+{{- end }}
+      containers:
+      - name: redis
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 6379
+          name: client
+        args: 
+        - slave
+        env:
+        {{- if .Values.usePassword.enabled }}
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}
+              key: redis-password
+        {{- end }}
+        - name: REDIS_MASTER_HOST
+          value: {{ .Release.Name }}-master-0.{{ .Release.Name }}-master-headless.{{ .Values.namespace }}.svc.{{ .Values.clusterDomain }}
+        resources:
+{{ toYaml .Values.slave.resources | indent 10 }}
+        {{- if .Values.slave.livenessProbe.enabled }}
+        livenessProbe:
+          initialDelaySeconds: {{ .Values.slave.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.slave.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.slave.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.slave.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.slave.livenessProbe.failureThreshold }}
+          exec:
+            command:
+            - sh
+            - -c
+        {{- if .Values.usePassword.enabled }}
+            - redis-cli -a $REDIS_PASSWORD --no-auth-warning -h localhost ping | grep PONG
+        {{- else }}
+            - redis-cli -h localhost ping | grep PONG
+        {{- end }}
+        {{- end }}
+      {{- if .Values.slave.readinessProbe.enabled }}
+        readinessProbe:
+          initialDelaySeconds: {{ .Values.slave.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.slave.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.slave.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.slave.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.slave.livenessProbe.failureThreshold }}
+          exec:
+            command:
+            - sh
+            - -c
+        {{- if .Values.usePassword.enabled }}
+            - redis-cli -a $REDIS_PASSWORD --no-auth-warning -h localhost ping | grep PONG
+        {{- else }}
+            - redis-cli -h localhost ping | grep PONG
+        {{- end }}
+        {{- end }}
+        volumeMounts:
+        - name: data
+          mountPath: /data/redis/redis
+        - name: config
+          mountPath: /data/etc/mounted
+        - name: redis-tmp-conf
+          mountPath: /data/etc/conf/
+      {{- if and .Values.cluster.enabled .Values.sentinel.enabled }}
+      - name: sentinel
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 26379
+          name: sentinel
+        args:
+        - sentinel
+        {{- if .Values.usePassword.enabled }}
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}
+              key: redis-password
+        {{- end }}
+        resources:
+{{ toYaml .Values.sentinel.resources | indent 10 }}
+        {{- if .Values.sentinel.livenessProbe.enabled }}
+        livenessProbe:
+          initialDelaySeconds: {{ .Values.sentinel.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.sentinel.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.sentinel.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.sentinel.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.sentinel.livenessProbe.failureThreshold }}
+          exec:
+            command:
+            - sh
+            - -c
+        {{- if .Values.usePassword.enabled }}
+            - redis-cli -a $REDIS_PASSWORD --no-auth-warning -h localhost ping | grep PONG
+        {{- else }}
+            - redis-cli -h localhost ping | grep PONG
+        {{- end }}
+        {{- end }}
+        {{- if .Values.sentinel.readinessProbe.enabled }}
+        readinessProbe:
+          initialDelaySeconds: {{ .Values.sentinel.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.sentinel.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.sentinel.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.sentinel.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.sentinel.livenessProbe.failureThreshold }}
+          exec:
+            command:
+            - sh
+            - -c
+        {{- if .Values.usePassword.enabled }}
+            - redis-cli -a $REDIS_PASSWORD --no-auth-warning -h localhost ping | grep PONG
+        {{- else }}
+            - redis-cli -h localhost ping | grep PONG
+        {{- end }}
+        {{- end }}
+        volumeMounts:
+        - name: data
+          mountPath: /data/redis/sentinel
+        - name: config
+          mountPath: /data/etc/mounted
+        - name: sentinel-tmp-conf
+          mountPath: /data/etc/conf/
+      {{- end }}
+      {{- if .Values.metrics.enabled }}
+      - name: metrics
+        image: {{ .Values.metrics.image.repository }}:{{ .Values.metrics.image.tag }}
+        imagePullPolicy: {{ .Values.metrics.image.pullPolicy }}
+        env:
+        {{- if .Values.usePassword.enabled }}
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}
+              key: redis-password
+        {{- end }}
+        - name: REDIS_ALIAS
+          value: {{ .Release.Name }}
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+      initContainers:
+      - name: init-chown
+        image: busybox:1.28
+        command: ['sh', '-c', 'chown 1001:1001 /data -R']
+        volumeMounts:
+        - name: data
+          mountPath: /data 
+      {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ .Release.Name }}
+      - name: redis-tmp-conf
+        emptyDir: {}
+      {{- if and .Values.cluster.enabled .Values.sentinel.enabled }}
+      - name: sentinel-tmp-conf
+        emptyDir: {}
+      {{- end }}
+  {{- if not .Values.persistence.enabled }}
+      - name: data
+        emptyDir: {}
+  {{- else }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        release: {{ template "version" .}}
+        chart: "{{ .Chart.Name }}"
+        app: "{{ .Release.Name }}"
+        role: slave
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "{{ .Values.storageclass }}"
+      resources:
+        requests:
+          storage: {{ .Values.persistence.volumeSize }}
+  {{- end }}
+{{- end }}
